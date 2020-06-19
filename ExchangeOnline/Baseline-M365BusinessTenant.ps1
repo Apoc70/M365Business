@@ -7,24 +7,42 @@
 
     See Advanced-TenantConfig.ps1 for other customizations  
 
-    Connect to Exchange Online via PowerShell v2 using MFA:
+    Connect to Exchange Online (EXO) via PowerShell v2 using MFA:
     https://docs.microsoft.com/en-us/powershell/exchange/exchange-online-powershell-v2?view=exchange-ps
 
     .NOTES
     FileName:    Baseline-M365BTenant.ps1
     Author:      Alex Fields, ITProMentor.com, Thomas Stensitzki, Granikos
-    Created:     11-18-2019
-    Revised:     03-01-2020
-    Version:     3.0
+    Created:     2019-11-18
+    Revised:     2020-06-19
+    Version:     4.0
     
 #>
+
+
 ###################################################################################################
-## NOTE: If the script errors out, you may need to set your execution policy.
-## You may also need to run: Enable-OrganizationCustomization
+## NOTE: If the script errors out, you may need to set your local PowerShell execution policy.
+## You may also need to run: Enable-OrganizationCustomization in the EXO PowerShell 
 ## Please define these variables before running this script: 
 $MessageColor = 'Green'
 $AssessmentColor = 'Yellow'
 ###################################################################################################
+
+$ScriptDir = Split-Path -Path $script:MyInvocation.MyCommand.Path
+
+function Request-Choice {
+  [CmdletBinding()]
+  param(
+    [string]$Caption = 'Really?'
+  )
+  $choices =  [System.Management.Automation.Host.ChoiceDescription[]]@('&Yes','&No')
+    
+  [int]$defaultChoice = 1
+
+  $choiceReturn = $Host.UI.PromptForChoice($Caption, '', $choices, $defaultChoice)
+
+  return $choiceReturn
+}
 
 #################################################
 ## ENABLE UNIFIED AUDIT LOG SEARCH
@@ -33,12 +51,13 @@ $AuditLogConfig = Get-AdminAuditLogConfig
 if ($AuditLogConfig.UnifiedAuditLogIngestionEnabled) {
   Write-Host 
   Write-Host -ForegroundColor $MessageColor 'Unified Audit Log Search is already enabled'
-} else {
+} 
+else {
   Write-Host 
   Write-Host -ForegroundColor $AssessmentColor 'Unified Audit Log is not enabled'
   Write-Host 
-  $Answer = Read-Host -Prompt 'Do you want to enable mailbox auditing to the Unified Audit Log now? Type Y or N and press Enter to continue'
-  if ($Answer -eq 'y' -or $Answer -eq 'yes') {
+  
+  if ((Request-Choice -Caption 'Do you want to enable mailbox auditing to the Unified Audit Log now?') -eq 0) {
     Set-AdminAuditLogConfig -UnifiedAuditLogIngestionEnabled $true
     Get-Mailbox -ResultSize Unlimited | Set-Mailbox -AuditEnabled $true
     Write-Host 
@@ -61,8 +80,8 @@ if ($OrgConfig.OAuth2ClientProfileEnabled) {
   Write-Host
   Write-Host -ForegroundColor $AssessmentColor 'Modern Authentication for Exchange online is not enabled'
   Write-Host 
-  $Answer = Read-Host -Prompt 'Do you want to enable Modern Authentication for Exchange Online now? Type Y or N and press Enter to continue'
-  if ($Answer -eq 'y' -or $Answer -eq 'yes') {
+  
+  if ((Request-Choice -Caption 'Do you want to enable Modern Authentication for Exchange Online now?') -eq 0) {
     Set-OrganizationConfig -OAuth2ClientProfileEnabled $true
     Write-Host 
     Write-Host -ForegroundColor $MessageColor 'Modern Authentication is now enabled'
@@ -80,10 +99,12 @@ if ($OrgConfig.DefaultAuthenticationPolicy -eq $null -or $OrgConfig.DefaultAuthe
   Write-Host 
   Write-Host -ForegroundColor $MessageColor 'There is no default authentication policy in place'
   Write-Host -ForegroundColor $MessageColor "NOTE: You don't need one if you are using Security Defaults or Conditional Access"
-  $AuthAnswer = Read-Host -Prompt 'Would you like to block legacy authentication using an authentication policy? Type Y or N and press Enter to continue'
-  if ($AuthAnswer -eq 'y' -or $AuthAnswer -eq 'yes') {
+  
+  if ((Request-Choice -Caption 'Would you like to block legacy authentication using an authentication policy?') -eq 0) {
+
     $PolicyName = 'Block Basic Auth'
     $CheckPolicy = Get-AuthenticationPolicy | Where-Object {$_.Name -contains $PolicyName}
+
     if (!$CheckPolicy) {
       New-AuthenticationPolicy -Name $PolicyName
       Write-Host
@@ -153,14 +174,17 @@ if ($RemoteDomainDefault.AutoForwardEnabled) {
   Write-Host 
   Write-Host -ForegroundColor $AssessmentColor 'Auto-forwarding to remote domains is currently allowed.'
   Write-Host 
-  $Answer = Read-Host -Prompt 'Do you want to block auto-forwarding to remote domains? Type Y or N and press Enter to continue'
-  if ($Answer -eq 'y' -or $Answer -eq 'yes') {
+
+  if ((Request-Choice -Caption 'Do you want to block auto-forwarding to remote domains?') -eq 0) {
+  
     ## DENY AUTOFORWARD ON THE DEFAULT REMOTE DOMAIN (*) 
     Set-RemoteDomain Default -AutoForwardEnabled $false
+    
     ## ALSO DENY AUTO-FORWARDING FROM MAILBOX RULES VIA TRANSPORT RULE WITH REJECTION MESSAGE
     $TransportRuleName = 'External Forward Block'
     $rejectMessageText = 'Mail forwarding to external domains is not permitted. If you have questions, please contact support.'
     $ExternalForwardRule = Get-TransportRule | Where-Object {$_.Identity -contains $TransportRuleName}
+    
     if (!$ExternalForwardRule) {
       Write-Output 'External Forward Block rule not found, creating rule...'
       New-TransportRule -name $TransportRuleName -Priority 1 -SentToScope NotInOrganization -MessageTypeMatches AutoForward -RejectMessageEnhancedStatusCode 5.7.1 -RejectMessageReasonText $rejectMessageText
@@ -174,19 +198,25 @@ if ($RemoteDomainDefault.AutoForwardEnabled) {
   
   ## EXPORT LIST OF FORWARDERS TO CSV
   Write-Host    
-  $Answer2 = Read-Host 'Do you want to export to CSV a list of mailboxes that might be impacted by disabling auto-forward to remote domains? Type Y or N and press Enter to continue'
-  if ($Answer2 -eq 'y' -or $Answer2 -eq 'yes') {
+  
+  if ((Request-Choice -Caption 'Do you want to export to CSV a list of mailboxes that might be impacted by disabling auto-forward to remote domains?') -eq 0) {
+  
     ## Collect existing mailbox forwarding into CSV files at C:\temp\DomainName-MailboxForwarding.csv and DomainName-InboxRules.csv
     Write-Host 
     Write-Host -ForegroundColor $AssessmentColor 'Exporting known mailbox forwarders and inbox rules that auto-forward'
+    
     $DefaultDomainName = Get-AcceptedDomain | Where-Object Default -EQ True
-    Get-Mailbox -ResultSize Unlimited -Filter {(RecipientTypeDetails -ne 'DiscoveryMailbox') -and ((ForwardingSmtpAddress -ne $null) -or (ForwardingAddress -ne $null))} | Select-Object Identity,ForwardingSmtpAddress,ForwardingAddress | Export-Csv c:\temp\$DefaultDomainName-MailboxForwarding.csv -append
-    foreach ($a in (Get-Mailbox -ResultSize Unlimited |Select-Object PrimarySMTPAddress)) {Get-InboxRule -Mailbox $a.PrimarySMTPAddress | Where-Object{($_.ForwardTo -ne $null) -or ($_.ForwardAsAttachmentTo -ne $null) -or ($_.DeleteMessage -eq $true) -or ($_.RedirectTo -ne $null)} |Select-Object Name,Identity,ForwardTo,ForwardAsAttachmentTo, RedirectTo, DeleteMessage | Export-Csv c:\temp\$DefaultDomainName-InboxRules.csv -append }
+        
+    Get-Mailbox -ResultSize Unlimited -Filter {(RecipientTypeDetails -ne 'DiscoveryMailbox') -and ((ForwardingSmtpAddress -ne $null) -or (ForwardingAddress -ne $null))} | Select-Object -Property Identity,ForwardingSmtpAddress,ForwardingAddress | Export-Csv -Path (Join-Path -Path $ScriptDir -ChildPath ('{0}-MailboxForwarding.csv' -f $DefaultDomainName)) -Append -Encoding UTF8 -Delimiter ';'
+    
+    
+    foreach ($a in (Get-Mailbox -ResultSize Unlimited |Select-Object -Property PrimarySMTPAddress)) {Get-InboxRule -Mailbox $a.PrimarySMTPAddress | Where-Object{($_.ForwardTo -ne $null) -or ($_.ForwardAsAttachmentTo -ne $null) -or ($_.DeleteMessage -eq $true) -or ($_.RedirectTo -ne $null)} |Select-Object -Property Name,Identity,ForwardTo,ForwardAsAttachmentTo, RedirectTo, DeleteMessage | Export-Csv -Path (Join-Path -Path $ScriptDir -ChildPath ('{0}-InboxRules.csv' -f $DefaultDomainName)) -Append -Encoding UTF8 -Delimiter ';' }
+    
     Write-Host 
     Write-Host -ForegroundColor $AssessmentColor 'After running this script, check the CSV files under C:\temp for a list of mail users who may be affected by disabling the ability to auto-forward messages to external domains'
   } else {
     Write-Host 
-    Write-Host  -ForegroundColor $MessageColor 'Run the script again if you wish to export auto-forwarding mailboxes and inbox rules'
+    Write-Host  -ForegroundColor $MessageColor 'Run the script again if you wish to export auto-forwarding mailboxes and inbox rules'  
   }
 } else {
   Write-Host 
@@ -198,8 +228,8 @@ if ($RemoteDomainDefault.AutoForwardEnabled) {
 ## RESET THE DEFAULT ANTISPAM SETTINGS
 #################################################
 Write-Host 
-$Answer = Read-Host -Prompt 'Do you want to reset the default spam filter policy with the recommended baseline settings? Type Y or N and press Enter to continue'
-if ($Answer -eq 'y' -or $Answer -eq 'yes') {
+
+if ((Request-Choice -Caption 'Do you want to reset the default spam filter policy with the recommended baseline settings?') -eq 0) {
   $HostedContentPolicyParam = @{
     'bulkspamaction' =  'MoveToJMF';
     'bulkthreshold' =  '6';
@@ -234,8 +264,8 @@ if ($Answer -eq 'y' -or $Answer -eq 'yes') {
   Write-Host
   Write-Host -ForegroundColor $MessageColor 'The default spam filter policy has been reset according to best practices'
   Write-Host 
-  $Answer2 = Read-Host -Prompt 'Do you also want to disable custom anti-spam rules, so that only the default policy applies? Type Y or N and press Enter to continue'
-  if ($Answer2 -eq 'y' -or $Answer2 -eq 'yes') {
+  
+  if ((Request-Choice -Caption 'Do you also want to disable custom anti-spam rules, so that only the default policy applies?') -eq 0) {
     Get-HostedContentFilterRule | Disable-HostedContentFilterRule
     Write-Host
     Write-Host -ForegroundColor $MessageColor 'All custom anti-spam rules were disabled; they have not been deleted'
@@ -254,10 +284,12 @@ if ($Answer -eq 'y' -or $Answer -eq 'yes') {
 ## RESET DEFAULT ANTIMALWARE SETTINGS
 #################################################
 Write-Host 
-$Answer = Read-Host -Prompt 'Do you want to reset the default malware filter policy with the recommended baseline settings? Type Y or N and press Enter to continue'
-if ($Answer -eq 'y' -or $Answer -eq 'yes') {
+
+if ((Request-Choice -Caption 'Do you want to reset the default malware filter policy with the recommended baseline settings?') -eq 0) {
   Write-Host 
+  
   $AlertAddress= Read-Host -Prompt 'Enter the email address where you would like to recieve alerts about malware and outbound spam'
+  
   ## Modify the default malware filter policy
   $MalwarePolicyParam = @{
     'Action' =  'DeleteMessage';
@@ -268,12 +300,13 @@ if ($Answer -eq 'y' -or $Answer -eq 'yes') {
     'EnableExternalSenderNotifications' = $false;
     'Zap' = $true
   }
+  
   Set-MalwareFilterPolicy Default @MalwarePolicyParam -MakeDefault
   Write-Host 
   Write-Host -ForegroundColor $MessageColor 'The default malware filter policy has been reset according to best practices'
   Write-Host 
-  $Answer2 = Read-Host -Prompt 'Do you also want to disable custom malware filter rules, so that only the default policy applies? Type Y or N and press Enter to continue'
-  if ($Answer2 -eq 'y' -or $Answer2 -eq 'yes') {
+    
+  if ((Request-Choice -Caption 'Do you also want to disable custom malware filter rules, so that only the default policy applies?') -eq 0) {
     Get-MalwareFilterRule | Disable-MalwareFilterRule
     Write-Host
     Write-Host -ForegroundColor $MessageColor 'All custom malware filter rules were disabled; they have not been deleted'
@@ -292,8 +325,8 @@ if ($Answer -eq 'y' -or $Answer -eq 'yes') {
 ## RESET OUTBOUND SPAM FILTER
 #################################################
 Write-Host 
-$Answer = Read-Host -Prompt 'Do you want to reset the outbound spam filter policy with the recommended baseline settings? Type Y or N and press Enter to continue'
-if ($Answer -eq 'y' -or $Answer -eq 'yes') {
+
+if ((Request-Choice -Caption 'Do you want to reset the outbound spam filter policy with the recommended baseline settings?') -eq 0) {
   if ($AlertAddress -eq $null -or $AlertAddress -eq '') {
     $AlertAddress = Read-Host -Prompt 'Enter the email address where you would like to recieve alerts about outbound spam'
     $OutboundPolicyParam = @{
@@ -327,8 +360,8 @@ if ($Answer -eq 'y' -or $Answer -eq 'yes') {
 ## CONFIGURE OFFICE 365 ATP SETTINGS
 #################################################
 Write-Host
-$Answer = Read-Host -Prompt 'Do you want to configure Office 365 ATP with the recommended baseline settings? Type Y or N and press Enter to continue'
-if ($Answer -eq 'y' -or $Answer -eq 'yes') {
+
+if ((Request-Choice -Caption 'Do you want to configure Office 365 ATP with the recommended baseline settings?') -eq 0) {
 
 
   $AcceptedDomains = Get-AcceptedDomain
@@ -339,6 +372,7 @@ if ($Answer -eq 'y' -or $Answer -eq 'yes') {
 
   ## Configures the default ATP policy for Office 365
   ## https://docs.microsoft.com/en-us/powershell/module/exchange/advanced-threat-protection/set-atppolicyforo365?view=exchange-ps
+  
   $AtpPolicyForO365Param=@{
     'EnableATPForSPOTeamsODB' =  $true;
     #'EnableSafeLinksForClients' = $true;
@@ -478,6 +512,3 @@ if ($Answer -eq 'y' -or $Answer -eq 'yes') {
 
 ###################################################################################################
 ## THIS CONCLUDES THE SCRIPT
-
-
-
