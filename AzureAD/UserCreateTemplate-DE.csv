@@ -1,0 +1,5 @@
+﻿version:v1.0
+Name [displayName] Erforderlich,Benutzername [userPrincipalName] Erforderlich,Anfängliches Kennwort [passwordProfile] Erforderlich,Anmeldung blockieren (Ja/Nein) [accountEnabled] Erforderlich,Vorname [givenName],Nachname [surname],Position [jobTitle],Abteilung [department],Nutzungsspeicherort [usageLocation],Straße [streetAddress],Bundesland/Kanton [state],Land oder Region [country],Office [physicalDeliveryOfficeName],Stadt [city],Postleitzahl [postalCode],Telefon (geschäftlich) [telephoneNumber],Mobiltelefon [mobile]
+Example: Chris Green, chris@contoso.com, myPassword1234, No
+John Doe,JohnD@varunagroup.de,Ghdr1864,No,John,Doe,Geschäftsführer,Management,DE,Musterplatz 1,Berlin,DE,HQ,Berlin,11111,+49 30 xxx,+49 xxx yyy
+Max Müller,MaxM@varunagroup.de,Ghdr1865,No,Max,Müller,Projektmanager,IT,DE,Musterplatz 1,Berlin,DE,HQ,Berlin,11111,+49 30 xxx,+49 xxx yyy
