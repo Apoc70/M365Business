@@ -26,8 +26,9 @@
 ## Please define these variables before running this script: 
 $MessageColor = 'Green'
 $AssessmentColor = 'Yellow'
+$ErrorColor = 'Red'
 ###################################################################################################
-
+$ScriptVersion = '4.0'
 $ScriptDir = Split-Path -Path $script:MyInvocation.MyCommand.Path
 
 function Request-Choice {
@@ -35,7 +36,11 @@ function Request-Choice {
   param(
     [string]$Caption = 'Really?'
   )
-  $choices =  [System.Management.Automation.Host.ChoiceDescription[]]@('&Yes','&No')
+
+  switch((Get-Culture).IetfLanguageTag) {
+    'de-DE' { $choices =  [System.Management.Automation.Host.ChoiceDescription[]]@('&Ja','&Nein') }
+    default { $choices =  [System.Management.Automation.Host.ChoiceDescription[]]@('&Yes','&No') }
+  }
     
   [int]$defaultChoice = 1
 
@@ -44,92 +49,134 @@ function Request-Choice {
   return $choiceReturn
 }
 
+function Write-MissingCmdlet {
+  param(
+    [string]$Cmdlet
+  )
+  Write-Host -ForegroundColor $ErrorColor "Das Cmdlet [$Cmdlet] steht nicht zur Verfügung. Prüfen Sie bitte die Rollenmitgliedschaft des angemeldeten Benutzerkontos."
+}
+
 #################################################
 ## ENABLE UNIFIED AUDIT LOG SEARCH
 #################################################
-$AuditLogConfig = Get-AdminAuditLogConfig
-if ($AuditLogConfig.UnifiedAuditLogIngestionEnabled) {
-  Write-Host 
-  Write-Host -ForegroundColor $MessageColor 'Unified Audit Log Search is already enabled'
-} 
-else {
-  Write-Host 
-  Write-Host -ForegroundColor $AssessmentColor 'Unified Audit Log is not enabled'
-  Write-Host 
+
+if((Get-Command 'Get-AdminAuditLogConfig' -ErrorAction SilentlyContinue) -ne $null) { 
+
+  $AuditLogConfig = Get-AdminAuditLogConfig
+
+  if ($AuditLogConfig.UnifiedAuditLogIngestionEnabled) {
+    Write-Host 
+    Write-Host -ForegroundColor $MessageColor 'Unified Audit Log Suche ist bereits aktiviert'
+  } 
+  else {
+    Write-Host 
+    Write-Host -ForegroundColor $AssessmentColor 'Unified Audit Log ist nicht aktiviert'
+    Write-Host 
   
-  if ((Request-Choice -Caption 'Do you want to enable mailbox auditing to the Unified Audit Log now?') -eq 0) {
-    Set-AdminAuditLogConfig -UnifiedAuditLogIngestionEnabled $true
-    Get-Mailbox -ResultSize Unlimited | Set-Mailbox -AuditEnabled $true
-    Write-Host 
-    Write-Host -ForegroundColor $MessageColor 'Unified Audit Log Search is now enabled with mailbox auditing enabled' 
-  } else {
-    Write-Host 
-    Write-Host -ForegroundColor $AssessmentColor 'Unified Audit Log will not be enabled'
+    if ((Request-Choice -Caption 'Möchten Sie die Auditprotokollierung für Postfächer und das Unfied Audit Log aktivieren?') -eq 0) {
+    
+      # Aktivierung Unified Audit Protokollierung  
+      Set-AdminAuditLogConfig -UnifiedAuditLogIngestionEnabled $true
+  
+      # Aktivierung Audit Protokollierung für alle EXO Postfächer
+      $null = Get-Mailbox -ResultSize Unlimited | Set-Mailbox -AuditEnabled $true
+   
+      Write-Host 
+      Write-Host -ForegroundColor $MessageColor 'Unified Audit Log Suche und die Postfach-Auditprotokollierung sind aktiviert' 
+    } 
+    else {
+      Write-Host 
+      Write-Host -ForegroundColor $AssessmentColor 'Unified Audit Log wird nicht aktiviert'
+    }
   }
+}
+else {
+  Write-MissingCmdlet -Cmdlet 'Get-AdminAuditLogConfig'
 }
 
  
 #################################################
 ## CHECK TO ENSURE MODERN AUTH IS ENABLED
 #################################################
-$OrgConfig = Get-OrganizationConfig 
-if ($OrgConfig.OAuth2ClientProfileEnabled) {
-  Write-Host 
-  Write-Host -ForegroundColor $MessageColor 'Modern Authentication for Exchange Online is already enabled'
-} else {
-  Write-Host
-  Write-Host -ForegroundColor $AssessmentColor 'Modern Authentication for Exchange online is not enabled'
-  Write-Host 
+
+if((Get-Command 'Get-OrganizationConfig' -ErrorAction SilentlyContinue) -ne $null) { 
+
+  $OrgConfig = Get-OrganizationConfig 
   
-  if ((Request-Choice -Caption 'Do you want to enable Modern Authentication for Exchange Online now?') -eq 0) {
-    Set-OrganizationConfig -OAuth2ClientProfileEnabled $true
+  if ($OrgConfig.OAuth2ClientProfileEnabled) {
+  
     Write-Host 
-    Write-Host -ForegroundColor $MessageColor 'Modern Authentication is now enabled'
-  } Else {
+    Write-Host -ForegroundColor $MessageColor 'Modern Authentication für Exchange Online ist bereits aktiviert'
+  } 
+  else {
     Write-Host
-    Write-Host -ForegroundColor $AssessmentColor 'Modern Authentication will not be enabled'
-  }
-}
-
-     
-#################################################
-## BLOCK BASIC AUTH
-#################################################
-if ($OrgConfig.DefaultAuthenticationPolicy -eq $null -or $OrgConfig.DefaultAuthenticationPolicy -eq '') {
-  Write-Host 
-  Write-Host -ForegroundColor $MessageColor 'There is no default authentication policy in place'
-  Write-Host -ForegroundColor $MessageColor "NOTE: You don't need one if you are using Security Defaults or Conditional Access"
+    Write-Host -ForegroundColor $AssessmentColor 'Modern Authentication für Exchange Online ist nicht aktiviert'
+    Write-Host 
   
-  if ((Request-Choice -Caption 'Would you like to block legacy authentication using an authentication policy?') -eq 0) {
-
-    $PolicyName = 'Block Basic Auth'
-    $CheckPolicy = Get-AuthenticationPolicy | Where-Object {$_.Name -contains $PolicyName}
-
-    if (!$CheckPolicy) {
-      New-AuthenticationPolicy -Name $PolicyName
+    if ((Request-Choice -Caption 'Möchten Sie Modern Authentication für Exchange Online jetzt aktivieren?') -eq 0) {
+      
+      Set-OrganizationConfig -OAuth2ClientProfileEnabled $true
+      Write-Host 
+      Write-Host -ForegroundColor $MessageColor 'Modern Authentication ist jetzt aktiviert'
+    } 
+    else {
       Write-Host
-      Write-Host -ForegroundColor $MessageColor 'Block Basic Auth policy has been created'
-    } else {
-      Write-Host
-      Write-Host  -ForegroundColor $MessageColor 'Block Basic Auth policy already exists'
+      Write-Host -ForegroundColor $AssessmentColor 'Modern Authentication wird nicht aktiviert'
     }
-    Set-OrganizationConfig -DefaultAuthenticationPolicy $PolicyName
-    Write-Host
-    Write-Host -ForegroundColor $MessageColor 'Block Basic Auth has been set as the default authentication policy for the organization; to create exceptions to this policy, please see the comments included at the end of this script.'
-    Write-Host
-  } else {
-    Write-Host
-    Write-Host -ForegroundColor $AssessmentColor 'Block Basic Auth will not be set as the default authentication policy.'
-    Write-Host
   }
-} else {
-  Write-Host
-  Write-Host -ForegroundColor $AssessmentColor 'There is already a default policy in place. No changes will be made. Your default authentication policy is:'
-  Write-Host
-  $OrgConfig.DefaultAuthenticationPolicy
-  Write-Host 
-}
+     
+  #################################################
+  ## BLOCK BASIC AUTH
+  #################################################
+  
+  if ($OrgConfig.DefaultAuthenticationPolicy -eq $null -or $OrgConfig.DefaultAuthenticationPolicy -eq '') {
+  
+    Write-Host 
+    Write-Host -ForegroundColor $MessageColor 'Es existiert keine Standard-Authentifizierungsrichtlinie'
+    Write-Host -ForegroundColor $MessageColor "HINWEIS: Wenn Sie Sicherheitsstandards oder Bedingten Zugriff nutzen, ist dies nicht erforderlich"
+  
+    if ((Request-Choice -Caption 'Möchten Sie unsichere Anmeldeverfahren mit einer Authentifizierungsrichtlinie blockieren?') -eq 0) {
 
+      # Name der Richtlinie
+      $PolicyName = ('Blockierung Basic Auth - M365Skript ({0})' -f $ScriptVersion)
+      $CheckPolicy = Get-AuthenticationPolicy | Where-Object {$_.Name -contains $PolicyName}
+
+      if (!$CheckPolicy) {
+        # Erstellung einer neuen Richtlinie
+        New-AuthenticationPolicy -Name $PolicyName
+        Write-Host
+        Write-Host -ForegroundColor $MessageColor ('Richtlinie [{0}] wurde erstellt' -f $PolicyName)
+      } 
+      else {
+        Write-Host
+        Write-Host  -ForegroundColor $MessageColor ('Richtlinie [{0}] existiert bereits' -f $PolicyName)
+      }
+      
+      # Setzen der Standard-Authentifizierungsrichtlinie
+      Set-OrganizationConfig -DefaultAuthenticationPolicy $PolicyName
+      
+      Write-Host
+      Write-Host -ForegroundColor $MessageColor ('Richtlinie [{0}] wurde als organisationsweite Standard-Authentifizierungsrichtlinie konfiguriert' -f $PolicyName)
+      Write-Host -ForegroundColor $MessageColor 'In den Kommentaren dieses Skriptes finden Sie Informationen zur weiteren Anpassung der Richtlinie'
+      Write-Host
+    } 
+    else {
+      Write-Host
+      Write-Host  -ForegroundColor $AssessmentColor ('Richtlinie [{0}] wird nicht als Standard-Authentifizierungsrichtlinie konfiguriert' -f $PolicyName)
+      Write-Host
+    }
+  } 
+  else {
+    Write-Host
+    Write-Host -ForegroundColor $AssessmentColor 'Es existiert bereits eine Standardrichtlinie. Es werden keine Änderunge vorgenommen. Die Standardrichtlinie ist:'
+    Write-Host
+    $OrgConfig.DefaultAuthenticationPolicy
+    Write-Host 
+  }
+}
+else {
+  Write-MissingCmdlet -Cmdlet 'Get-OrganizationConfig'
+}
 
 
 ## OPTIONAL: 
@@ -169,114 +216,146 @@ if ($OrgConfig.DefaultAuthenticationPolicy -eq $null -or $OrgConfig.DefaultAuthe
 #################################################
 ## DISABLE AUTOMATIC FORWARDING 
 #################################################
-$RemoteDomainDefault = Get-RemoteDomain Default 
-if ($RemoteDomainDefault.AutoForwardEnabled) {
-  Write-Host 
-  Write-Host -ForegroundColor $AssessmentColor 'Auto-forwarding to remote domains is currently allowed.'
-  Write-Host 
 
-  if ((Request-Choice -Caption 'Do you want to block auto-forwarding to remote domains?') -eq 0) {
+if((Get-Command 'Get-RemoteDomain' -ErrorAction SilentlyContinue) -ne $null) { 
+
+  $RemoteDomainDefault = Get-RemoteDomain Default 
+
+  if ($RemoteDomainDefault.AutoForwardEnabled) {
   
-    ## DENY AUTOFORWARD ON THE DEFAULT REMOTE DOMAIN (*) 
-    Set-RemoteDomain Default -AutoForwardEnabled $false
-    
-    ## ALSO DENY AUTO-FORWARDING FROM MAILBOX RULES VIA TRANSPORT RULE WITH REJECTION MESSAGE
-    $TransportRuleName = 'External Forward Block'
-    $rejectMessageText = 'Mail forwarding to external domains is not permitted. If you have questions, please contact support.'
-    $ExternalForwardRule = Get-TransportRule | Where-Object {$_.Identity -contains $TransportRuleName}
-    
-    if (!$ExternalForwardRule) {
-      Write-Output 'External Forward Block rule not found, creating rule...'
-      New-TransportRule -name $TransportRuleName -Priority 1 -SentToScope NotInOrganization -MessageTypeMatches AutoForward -RejectMessageEnhancedStatusCode 5.7.1 -RejectMessageReasonText $rejectMessageText
-    } else {Write-Output 'External forward block rule already exists.'} 
     Write-Host 
-    Write-Host -ForegroundColor $MessageColor 'Auto-forwarding to remote domains is now disabled'        
-  } else {
-    Write-Host
-    Write-Host -ForegroundColor $AssessmentColor 'Auto-forwarding to remote domains will not be disabled'
-  }
-  
-  ## EXPORT LIST OF FORWARDERS TO CSV
-  Write-Host    
-  
-  if ((Request-Choice -Caption 'Do you want to export to CSV a list of mailboxes that might be impacted by disabling auto-forward to remote domains?') -eq 0) {
-  
-    ## Collect existing mailbox forwarding into CSV files at C:\temp\DomainName-MailboxForwarding.csv and DomainName-InboxRules.csv
+    Write-Host -ForegroundColor $AssessmentColor 'Die automatische Weiterleitung von E-Mails an externe Empfänger ist aktuell erlaubt.'
     Write-Host 
-    Write-Host -ForegroundColor $AssessmentColor 'Exporting known mailbox forwarders and inbox rules that auto-forward'
+
+    if ((Request-Choice -Caption 'Soll die automatische Weiterleitung an externe Empfänger unterbunden werden?') -eq 0) {
+  
+      ## DENY AUTOFORWARD ON THE DEFAULT REMOTE DOMAIN (*) 
+      Set-RemoteDomain Default -AutoForwardEnabled $false
     
-    $DefaultDomainName = Get-AcceptedDomain | Where-Object Default -EQ True
+      ## ALSO DENY AUTO-FORWARDING FROM MAILBOX RULES VIA TRANSPORT RULE WITH REJECTION MESSAGE
+      $TransportRuleName = "Blockierung externer Weiterleitungen"
+      $rejectMessageText = 'Die automatische Weiterleitung von E-Mail-Nachrichten an externe Empfänger ist untersagt. Für weitere Informationen wenden Sie sich bitte an das Helpdesk.'
+      
+      $ExternalForwardRule = Get-TransportRule | Where-Object {$_.Identity -contains $TransportRuleName}
+    
+      if (!$ExternalForwardRule) {
+        Write-Host -ForegroundColor $MessageColor 'Transportregel zur Blockierung automatischer Weiterleitungen wurde nicht gefunden. Die Regel wird erstellt.'
+        New-TransportRule -name $TransportRuleName -Priority 1 -SentToScope NotInOrganization -MessageTypeMatches AutoForward -RejectMessageEnhancedStatusCode 5.7.1 -RejectMessageReasonText $rejectMessageText
+      } 
+      else {
+        Write-Host -ForegroundColor $MessageColor 'Die Transportregel zur Blockierung automatischer Weiterleitungen existiert bereits.'
+      } 
+      Write-Host 
+      Write-Host -ForegroundColor $MessageColor 'Die automatische Weiterleitung an externe Empfänger ist deaktiviert.'        
+    } 
+    else {
+      Write-Host
+      Write-Host -ForegroundColor $AssessmentColor 'Die automatische Weiterleitung an externe Empfänger wird nicht deaktiviert'
+    }
+  
+    ## EXPORT LIST OF FORWARDERS TO CSV
+    Write-Host    
+  
+    if ((Request-Choice -Caption 'Soll eine Liste der eventuell betroffenen Postfächer als CSV-Datei exportiert werden?') -eq 0) {
+  
+      ## Collect existing mailbox forwarding into CSV files as DomainName-MailboxForwarding.csv and DomainName-InboxRules.csv
+      Write-Host 
+      Write-Host -ForegroundColor $AssessmentColor 'Export der Postfachweiterleitungen und Posteingangsregeln für automatische Weiterleitungen'
+    
+      $DefaultDomainName = Get-AcceptedDomain | Where-Object Default -EQ True
         
-    Get-Mailbox -ResultSize Unlimited -Filter {(RecipientTypeDetails -ne 'DiscoveryMailbox') -and ((ForwardingSmtpAddress -ne $null) -or (ForwardingAddress -ne $null))} | Select-Object -Property Identity,ForwardingSmtpAddress,ForwardingAddress | Export-Csv -Path (Join-Path -Path $ScriptDir -ChildPath ('{0}-MailboxForwarding.csv' -f $DefaultDomainName)) -Append -Encoding UTF8 -Delimiter ';'
+      Get-Mailbox -ResultSize Unlimited -Filter {(RecipientTypeDetails -ne 'DiscoveryMailbox') -and ((ForwardingSmtpAddress -ne $null) -or (ForwardingAddress -ne $null))} | Select-Object -Property Identity,ForwardingSmtpAddress,ForwardingAddress | Export-Csv -Path (Join-Path -Path $ScriptDir -ChildPath ('{0}-MailboxForwarding.csv' -f $DefaultDomainName)) -Append -Encoding UTF8 -Delimiter ';'
     
+      foreach ($a in (Get-Mailbox -ResultSize Unlimited |Select-Object -Property PrimarySMTPAddress)) {
+        Get-InboxRule -Mailbox $a.PrimarySMTPAddress | Where-Object{($_.ForwardTo -ne $null) -or ($_.ForwardAsAttachmentTo -ne $null) -or ($_.DeleteMessage -eq $true) -or ($_.RedirectTo -ne $null)} |Select-Object -Property Name,Identity,ForwardTo,ForwardAsAttachmentTo, RedirectTo, DeleteMessage | Export-Csv -Path (Join-Path -Path $ScriptDir -ChildPath ('{0}-InboxRules.csv' -f $DefaultDomainName)) -Append -Encoding UTF8 -Delimiter ';' 
+      }
     
-    foreach ($a in (Get-Mailbox -ResultSize Unlimited |Select-Object -Property PrimarySMTPAddress)) {Get-InboxRule -Mailbox $a.PrimarySMTPAddress | Where-Object{($_.ForwardTo -ne $null) -or ($_.ForwardAsAttachmentTo -ne $null) -or ($_.DeleteMessage -eq $true) -or ($_.RedirectTo -ne $null)} |Select-Object -Property Name,Identity,ForwardTo,ForwardAsAttachmentTo, RedirectTo, DeleteMessage | Export-Csv -Path (Join-Path -Path $ScriptDir -ChildPath ('{0}-InboxRules.csv' -f $DefaultDomainName)) -Append -Encoding UTF8 -Delimiter ';' }
-    
+      Write-Host 
+      Write-Host -ForegroundColor $AssessmentColor "Prüfen Sie nach Abschluss des Skriptes die CSV-Dateien im Verzeichnis $ScriptDir auf eventuelle betroffene Anwender dieser Änderung."
+    } 
+    else {
+      Write-Host 
+      Write-Host  -ForegroundColor $MessageColor 'Führen Sie das Skript erneut aus, wenn Sie eine Übersicht der Postfächer und Posteingangsregeln mit automatischer Weiterleitung exportieren möchten.'
+    }
+  } 
+  else {
     Write-Host 
-    Write-Host -ForegroundColor $AssessmentColor 'After running this script, check the CSV files under C:\temp for a list of mail users who may be affected by disabling the ability to auto-forward messages to external domains'
-  } else {
-    Write-Host 
-    Write-Host  -ForegroundColor $MessageColor 'Run the script again if you wish to export auto-forwarding mailboxes and inbox rules'  
+    Write-Host -ForegroundColor $MessageColor 'Die automatische Weiterleitung für Remote-Domänen ist bereits unterbunden.'
   }
-} else {
-  Write-Host 
-  Write-Host -ForegroundColor $MessageColor 'Auto-forwarding to remote domains is already disabled'
 }
- 
+else {
+  Write-MissingCmdlet -Cmdlet 'Get-RemoteDomain'
+}
 
 #################################################
 ## RESET THE DEFAULT ANTISPAM SETTINGS
 #################################################
-Write-Host 
 
-if ((Request-Choice -Caption 'Do you want to reset the default spam filter policy with the recommended baseline settings?') -eq 0) {
-  $HostedContentPolicyParam = @{
-    'bulkspamaction' =  'MoveToJMF';
-    'bulkthreshold' =  '6';
-    'highconfidencespamaction' =  'quarantine';
-    'inlinesafetytipsenabled' = $true;
-    'markasspambulkmail' = 'on';
-    'enablelanguageblocklist' = $false;
-    'enableregionblocklist' = $false;
-    'increasescorewithimagelinks' = 'off'
-    'increasescorewithnumericips' = 'off'
-    'increasescorewithredirecttootherport' = 'off'
-    'increasescorewithbizorinfourls' = 'off';
-    'markasspamemptymessages' ='off';
-    'markasspamjavascriptinhtml' = 'off';
-    'markasspamframesinhtml' = 'off';
-    'markasspamobjecttagsinhtml' = 'off';
-    'markasspamembedtagsinhtml' ='off';
-    'markasspamformtagsinhtml' = 'off';
-    'markasspamwebbugsinhtml' = 'off';
-    'markasspamsensitivewordlist' = 'off';
-    'markasspamspfrecordhardfail' = 'off';
-    'markasspamfromaddressauthfail' = 'off';
-    'markasspamndrbackscatter' = 'off';
-    'phishspamaction' = 'quarantine';
-    'spamaction' = 'MoveToJMF';
-    'zapenabled' = $true;
-    'EnableEndUserSpamNotifications' = $true;
-    'EndUserSpamNotificationFrequency' = 1;
-    'QuarantineRetentionPeriod' = 30
-  }
-  Set-HostedContentFilterPolicy Default @HostedContentPolicyParam -MakeDefault
-  Write-Host
-  Write-Host -ForegroundColor $MessageColor 'The default spam filter policy has been reset according to best practices'
+if((Get-Command 'Set-HostedContentFilterPolicy' -ErrorAction SilentlyContinue) -ne $null) { 
+
   Write-Host 
+
+  if ((Request-Choice -Caption 'Do you want to reset the default spam filter policy with the recommended baseline settings?') -eq 0) {
   
-  if ((Request-Choice -Caption 'Do you also want to disable custom anti-spam rules, so that only the default policy applies?') -eq 0) {
-    Get-HostedContentFilterRule | Disable-HostedContentFilterRule
+    # Definition der Standard AntiSpam-Richtlinie
+    $HostedContentPolicyParam = @{
+      'bulkspamaction' =  'MoveToJMF';
+      'bulkthreshold' =  '6';
+      'highconfidencespamaction' =  'quarantine';
+      'inlinesafetytipsenabled' = $true;
+      'markasspambulkmail' = 'on';
+      'enablelanguageblocklist' = $false;
+      'enableregionblocklist' = $false;
+      'increasescorewithimagelinks' = 'off'
+      'increasescorewithnumericips' = 'off'
+      'increasescorewithredirecttootherport' = 'off'
+      'increasescorewithbizorinfourls' = 'off';
+      'markasspamemptymessages' ='off';
+      'markasspamjavascriptinhtml' = 'off';
+      'markasspamframesinhtml' = 'off';
+      'markasspamobjecttagsinhtml' = 'off';
+      'markasspamembedtagsinhtml' ='off';
+      'markasspamformtagsinhtml' = 'off';
+      'markasspamwebbugsinhtml' = 'off';
+      'markasspamsensitivewordlist' = 'off';
+      'markasspamspfrecordhardfail' = 'off';
+      'markasspamfromaddressauthfail' = 'off';
+      'markasspamndrbackscatter' = 'off';
+      'phishspamaction' = 'quarantine';
+      'spamaction' = 'MoveToJMF';
+      'zapenabled' = $true;
+      'EnableEndUserSpamNotifications' = $true;
+      'EndUserSpamNotificationFrequency' = 1;
+      'QuarantineRetentionPeriod' = 30
+    }
+    
+    # Filter-Richtlinie DEFAULT anpassen
+    Set-HostedContentFilterPolicy Default @HostedContentPolicyParam -MakeDefault
+    
     Write-Host
-    Write-Host -ForegroundColor $MessageColor 'All custom anti-spam rules were disabled; they have not been deleted'
+    Write-Host -ForegroundColor $MessageColor 'Die Standard AntiSpam-Richtlinie wurde auf die empfohlenen Einstellungen angepasst.'
+    Write-Host 
+  
+    if ((Request-Choice -Caption 'Sollen benutzerdefinierte AntiSpam-Regeln deaktiviert werden, so dass nur die Standard-Richtlinie aktiv ist?') -eq 0) {
+      
+      # AntiSpam-Regeln deaktivieren
+      Get-HostedContentFilterRule | Disable-HostedContentFilterRule
+      
+      Write-Host
+      Write-Host -ForegroundColor $MessageColor 'Alle beutzerdefinierten AntiSpam-Regeln wurden deaktiviert, jedoch nicht gelöscht.'
+    } 
+    else {
+      Write-Host 
+      Write-Host -ForegroundColor $AssessmentColor 'Es wurden keine benutzerdefinierten Anti-Spam-Regeln deaktiviert.'
+    }
+    
   } else {
     Write-Host 
-    Write-Host -ForegroundColor $AssessmentColor 'No custom rules were disabled'
+    Write-Host -ForegroundColor $AssessmentColor 'Die Standard AntiSpam-Richtlinie wurde nicht verändert.'
   }
-    
-} else {
-  Write-Host 
-  Write-Host -ForegroundColor $AssessmentColor 'The default anti-spam policy has not been modified'
+}
+else {
+  Write-MissingCmdlet -Cmdlet 'Set-HostedContentFilterPolicy'
 }
 
 
