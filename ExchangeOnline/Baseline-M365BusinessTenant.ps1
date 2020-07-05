@@ -138,7 +138,7 @@ if((Get-Command 'Get-OrganizationConfig' -ErrorAction SilentlyContinue) -ne $nul
     if ((Request-Choice -Caption 'Möchten Sie unsichere Anmeldeverfahren mit einer Authentifizierungsrichtlinie blockieren?') -eq 0) {
 
       # Name der Richtlinie
-      $PolicyName = ('Blockierung Basic Auth - M365Skript ({0})' -f $ScriptVersion)
+      $PolicyName = 'Blockierung Basic Auth - M365Skript'
       $CheckPolicy = Get-AuthenticationPolicy | Where-Object {$_.Name -contains $PolicyName}
 
       if (!$CheckPolicy) {
@@ -295,7 +295,7 @@ if((Get-Command 'Set-HostedContentFilterPolicy' -ErrorAction SilentlyContinue) -
 
   Write-Host 
 
-  if ((Request-Choice -Caption 'Do you want to reset the default spam filter policy with the recommended baseline settings?') -eq 0) {
+  if ((Request-Choice -Caption 'Möchten Sie die empfohlenen Standard-Einstellungen für die Anti-Spam-Filterung konfigurieren?') -eq 0) {
   
     # Definition der Standard AntiSpam-Richtlinie
     $HostedContentPolicyParam = @{
@@ -362,232 +362,265 @@ else {
 #################################################
 ## RESET DEFAULT ANTIMALWARE SETTINGS
 #################################################
-Write-Host 
 
-if ((Request-Choice -Caption 'Do you want to reset the default malware filter policy with the recommended baseline settings?') -eq 0) {
+if((Get-Command 'Set-MalwareFilterPolicy' -ErrorAction SilentlyContinue) -ne $null) { 
+
   Write-Host 
+
+  if ((Request-Choice -Caption 'Soll die Standard Malware Filter-Richtlinie mit den empfohlenen Einstellungen konfiguriert werden?') -eq 0) {
+    Write-Host 
   
-  $AlertAddress= Read-Host -Prompt 'Enter the email address where you would like to recieve alerts about malware and outbound spam'
+    # E-Mail-Adresse abfragen
+    $AlertAddress= Read-Host -Prompt 'An welche E-Mail-Adresse sollen Warnungen über Malware-Vorfälle gesendet werden?'
   
-  ## Modify the default malware filter policy
-  $MalwarePolicyParam = @{
-    'Action' =  'DeleteMessage';
-    'EnableFileFilter' =  $true;
-    'EnableInternalSenderAdminNotifications' = $true;
-    'InternalSenderAdminAddress' =  $AlertAddress;
-    'EnableInternalSenderNotifications' =  $false;
-    'EnableExternalSenderNotifications' = $false;
-    'Zap' = $true
-  }
+    ## Anpassung der Standard Malware Filter-Richtlinie
+    $MalwarePolicyParam = @{
+      'Action' =  'DeleteMessage';
+      'EnableFileFilter' =  $true;
+      'EnableInternalSenderAdminNotifications' = $true;
+      'InternalSenderAdminAddress' =  $AlertAddress;
+      'EnableInternalSenderNotifications' =  $false;
+      'EnableExternalSenderNotifications' = $false;
+      'Zap' = $true
+    }
   
-  Set-MalwareFilterPolicy Default @MalwarePolicyParam -MakeDefault
-  Write-Host 
-  Write-Host -ForegroundColor $MessageColor 'The default malware filter policy has been reset according to best practices'
-  Write-Host 
+    # Standard Malware-Richtlinie konfigurieren
+    Set-MalwareFilterPolicy Default @MalwarePolicyParam -MakeDefault
     
-  if ((Request-Choice -Caption 'Do you also want to disable custom malware filter rules, so that only the default policy applies?') -eq 0) {
-    Get-MalwareFilterRule | Disable-MalwareFilterRule
-    Write-Host
-    Write-Host -ForegroundColor $MessageColor 'All custom malware filter rules were disabled; they have not been deleted'
+    Write-Host 
+    Write-Host -ForegroundColor $MessageColor 'Die Standard Malware Filter-Richtlinie wurde mit den emfpohlenen Einstellungen konfiguriert.'
+    Write-Host 
+    
+    if ((Request-Choice -Caption 'Sollen benutzerdefinierte Malware Filterregeln deaktiviert werden, so dass nur die Standard-Richtlinie aktiv ist?') -eq 0) {
+    
+      # Benutzerdefinierte Regeln deaktivieren
+      Get-MalwareFilterRule | Disable-MalwareFilterRule
+    
+      Write-Host
+      Write-Host -ForegroundColor $MessageColor 'Alle benutzerdefinierten Malware Filterregeln wurden desktiviert, jedoch nicht gelöscht.'
+    } else {
+      Write-Host 
+      Write-Host -ForegroundColor $AssessmentColor 'Es wurden keine benutzerdefinierten Regeln deaktiviert.'
+    }
+    
   } else {
     Write-Host 
-    Write-Host -ForegroundColor $AssessmentColor 'No custom rules were disabled'
+    Write-Host -ForegroundColor $AssessmentColor 'Die Standard Malware Filter-Richtlinie wurde nicht verändert.'
   }
-    
-} else {
-  Write-Host 
-  Write-Host -ForegroundColor $AssessmentColor 'The default malware filter policy has not been modified'
 }
-
+else {
+  Write-MissingCmdlet -Cmdlet 'Set-MalwareFilterPolicy'
+}
 
 #################################################
 ## RESET OUTBOUND SPAM FILTER
 #################################################
-Write-Host 
+if((Get-Command 'Set-HostedOutboundSpamFilterPolicy' -ErrorAction SilentlyContinue) -ne $null) { 
 
-if ((Request-Choice -Caption 'Do you want to reset the outbound spam filter policy with the recommended baseline settings?') -eq 0) {
-  if ($AlertAddress -eq $null -or $AlertAddress -eq '') {
-    $AlertAddress = Read-Host -Prompt 'Enter the email address where you would like to recieve alerts about outbound spam'
-    $OutboundPolicyParam = @{
-      'Identity' = 'Default';
-      'RecipientLimitExternalPerHour' = 500;
-      'RecipientLimitInternalPerHour' = 1000;
-      'RecipientLimitPerDay' = 1000;
-      'ActionWhenThresholdReached' = BlockUser;
-      'notifyoutboundspam' = $true;
-      'NotifyOutboundSpamRecipients' = $AlertAddress
+  Write-Host 
+
+  if ((Request-Choice -Caption 'Soll die AntiSPam-Filterrichtlinie für ausgehende E-Mail-Nachrichten mit den empfohlenen Einstellungen konfiguriert werden?') -eq 0) {
+  
+    if ($AlertAddress -eq $null -or $AlertAddress -eq '') {
+      
+      $AlertAddress = Read-Host -Prompt 'An welche E-Mail-Adresse sollen Warnungen über ausgehende Spam-Vorfälle gesendet werden?'
+      
+      # Einstellungen der Antipam-Richtlinie
+      $OutboundPolicyParam = @{
+        'Identity' = 'Default';
+        'RecipientLimitExternalPerHour' = 500;
+        'RecipientLimitInternalPerHour' = 1000;
+        'RecipientLimitPerDay' = 1000;
+        'ActionWhenThresholdReached' = BlockUser;
+        'notifyoutboundspam' = $true;
+        'NotifyOutboundSpamRecipients' = $AlertAddress
+      }
+      
+      # Setzen der Richtlinie
+      Set-HostedOutboundSpamFilterPolicy @OutboundPolicyParam
+      
+      Write-Host
+      Write-Host -ForegroundColor $MessageColor 'Die AntiSpam-Filterrichtlinie für ausgehende E-Mail-Nachrichten wurde mit den empfohlenen Einstellungen konfiguriert.'
+      
+    } 
+    else {
+      # Standard
+      $OutboundPolicyParam = @{
+        'identity' = 'Default';
+        'notifyoutboundspam' = $true;
+        'NotifyOutboundSpamRecipients' = $AlertAddress
+      }
+      
+      Set-HostedOutboundSpamFilterPolicy @OutboundPolicyParam
+      Write-Host
+      Write-Host -ForegroundColor $MessageColor 'Die AntiSpam-Filterrichtlinie für ausgehende E-Mail-Nachrichten wurde auf die Standard-Einstellungen zurückgesetzt.'
     }
-    Set-HostedOutboundSpamFilterPolicy @OutboundPolicyParam
+  } 
+  else {
     Write-Host
-    Write-Host -ForegroundColor $MessageColor 'The default outbound spam filter has been reset according to best practices'
-  } else {
-    $OutboundPolicyParam = @{
-      'identity' = 'Default';
-      'notifyoutboundspam' = $true;
-      'NotifyOutboundSpamRecipients' = $AlertAddress
-    }
-    Set-HostedOutboundSpamFilterPolicy @OutboundPolicyParam
-    Write-Host
-    Write-Host -ForegroundColor $MessageColor 'The default outbound spam filter has been reset according to best practices'
+    Write-Host -ForegroundColor $AssessmentColor 'Die AntiSpam-Filterrichtlinie für ausgehende E-Mail-Nachrichten wurde nicht verändert.'
   }
-} else {
-  Write-Host
-  Write-Host -ForegroundColor $AssessmentColor 'The outbound spam filter policy has not been modified'
+}
+else {
+  Write-MissingCmdlet -Cmdlet 'Set-HostedOutboundSpamFilterPolicy'
 }
 
 #################################################
 ## CONFIGURE OFFICE 365 ATP SETTINGS
 #################################################
-Write-Host
-
-if ((Request-Choice -Caption 'Do you want to configure Office 365 ATP with the recommended baseline settings?') -eq 0) {
-
-
-  $AcceptedDomains = Get-AcceptedDomain
-  $RecipientDomains = $AcceptedDomains.DomainName
-
-
-  write-host -foregroundcolor green 'Configuring the Default ATP policy for Office 365...'
-
-  ## Configures the default ATP policy for Office 365
-  ## https://docs.microsoft.com/en-us/powershell/module/exchange/advanced-threat-protection/set-atppolicyforo365?view=exchange-ps
-  
-  $AtpPolicyForO365Param=@{
-    'EnableATPForSPOTeamsODB' =  $true;
-    #'EnableSafeLinksForClients' = $true;
-    'EnableSafeLinksForO365Clients' = $true;
-    'EnableSafeDocs' = $false
-    'TrackClicks' = $true;
-    'AllowClickThrough' = $false
-  }
-
-  Set-AtpPolicyForO365 @AtpPolicyForO365Param
-
-  write-host -foregroundcolor green 'Default ATP policy for Office 365 has been set.'
-
-  Write-Host -foregroundcolor green 'Creating the Safe Links Baseline Policy...'
-	
-  ## Create the SafeLinks policy
-  ## https://docs.microsoft.com/en-us/powershell/module/exchange/advanced-threat-protection/new-safelinkspolicy?view=exchange-ps
-
-  $SafeLinksPolicyParam=@{
-    'Name' = 'Safe Links Baseline Policy';
-    'AdminDisplayName' = 'Safe Links Baseline Policy';
-    'DoNotAllowClickThrough' =  $true;
-    'DoNotTrackUserClicks' = $false;
-    'DeliverMessageAfterScan' = $true;
-    'EnableForInternalSender' = $true;
-    'ScanUrls' = $true;
-    'TrackClicks' = $true;
-    'IsEnabled' = $true
-  }
-
-  New-SafeLinksPolicy @SafeLinksPolicyParam 
-
-  ## Create the Safe Links Rule
-  ## https://docs.microsoft.com/en-us/powershell/module/exchange/advanced-threat-protection/new-safelinksrule?view=exchange-ps
-
-  $SafeLinksRuleParam = @{
-    'Name' = 'Safe Links Baseline';
-    'SafeLinksPolicy' = 'Safe Links Baseline Policy';
-    'RecipientDomainIs' = $RecipientDomains;
-    'Enabled' = $true;
-    'Priority' = 0
-  }
-
-  New-SafeLinksRule @SafeLinksRuleParam
-
-  Write-Host -foregroundcolor green 'The Safe Links Baseline Policy is deployed.'
-
-  Write-Host -foregroundcolor green 'Creating the Safe Attachments Baseline Policy...'
-
-  ## Create the SafeAttachments policy
-  ## Action options = Block | Replace | Allow | DynamicDelivery (Block is the recommended action)
-  ## https://docs.microsoft.com/en-us/powershell/module/exchange/advanced-threat-protection/new-safeattachmentpolicy?view=exchange-ps
-
-  $SafeAttachmentPolicyParam=@{
-    'Name' = 'Safe Attachments Baseline Policy';
-    'AdminDisplayName' = 'Safe Attachments Baseline Policy';
-    'Action' =  'Block';
-    'ActionOnError' = $false;
-    'Enable' = $true;
-    'Redirect' = $false
-  }
-
-  New-SafeAttachmentPolicy @SafeAttachmentPolicyParam
-
-  ## Create the SafeAttachments Rule 
-  ## https://docs.microsoft.com/en-us/powershell/module/exchange/advanced-threat-protection/new-safeattachmentrule?view=exchange-ps
-
-  $SafeAttachRuleParam=@{
-    'Name' = 'Safe Attachments Baseline';
-    'SafeAttachmentPolicy' = 'Safe Attachments Baseline Policy';
-    'RecipientDomainIs' = $RecipientDomains;
-    'Enabled' = $true;
-    'Priority' = 0
-  }
-
-  New-SafeAttachmentRule @SafeAttachRuleParam
-
-  Write-Host -foregroundcolor green 'The Safe Attachment Baseline Policy is deployed.'
-
-  Write-Host -foregroundcolor green 'Creating the Anti-Phish Baseline Policy...'
-
-  ## Create the Anti-Phish policy 
-  ## https://docs.microsoft.com/en-us/powershell/module/exchange/advanced-threat-protection/new-antiphishpolicy?view=exchange-ps
-
-  $PhishPolicyParam=@{
-    ##'Name' = "AntiPhish Baseline Policy";
-    ##'AdminDisplayName' = "AntiPhish Baseline Policy";
-    'AuthenticationFailAction' =  'Quarantine';
-    'EnableAntispoofEnforcement' = $true;
-    'Enabled' = $true;
-    'EnableMailboxIntelligence' = $true;
-    'EnableMailboxIntelligenceProtection' = $true;
-    'MailboxIntelligenceProtectionAction' = 'Quarantine';
-    'EnableOrganizationDomainsProtection' = $true;
-    'EnableSimilarDomainsSafetyTips' = $true;
-    'EnableSimilarUsersSafetyTips' = $true;
-    'EnableTargetedDomainsProtection' = $false;
-    ##'TargetedDomainsToProtect' = $RecipientDomains;
-    'EnableTargetedUserProtection' = $false;
-    ##'TargetedUsersToProtect' = $TargetedUsersToProtect;
-    'EnableUnusualCharactersSafetyTips' = $true;
-    'PhishThresholdLevel' = 2;
-    'TargetedDomainProtectionAction' =  'Quarantine';
-    'TargetedUserProtectionAction' =  'Quarantine'
-  }
-
-  Set-AntiPhishPolicy -Identity 'Office365 AntiPhish Default' @PhishPolicyParam
-
-
-  <# Ignore this section unless you are attempting to create custom rules
-      ## Get-AntiPhishRule | Remove-AntiPhishRule
-      ## Get-AntiPhishPolicy | Where-Object IsDefault -eq $false | Set-AntiPhishPolicy -Enabled $false 
-      ## Create the AntiPhish rule
-      ## https://docs.microsoft.com/en-us/powershell/module/exchange/advanced-threat-protection/new-antiphishrule?view=exchange-ps
-	
-      $PhishRuleParam = @{
-      'Name' = "AntiPhish Baseline";
-      'AntiPhishPolicy' = "AntiPhish Baseline Policy"; 
-      'RecipientDomainis' = $RecipientDomains;
-      'Enabled' = $true;
-      'Priority' = 0
-      }
-
-      New-AntiPhishRule @PhishRuleParam
-  #>
-
-  Write-Host -foregroundcolor green 'The AntiPhish Baseline Policy is deployed.'
-
-  write-host -foregroundcolor green 'Office 365 ATP baseline configuration has completed.'
-
-} else {
+if((Get-Command 'Set-HostedOutboundSpamFilterPolicy' -ErrorAction SilentlyContinue) -ne $null) { 
 
   Write-Host
-  Write-Host -ForegroundColor $AssessmentColor 'Office 365 ATP features have not been modified.'
 
+  if ((Request-Choice -Caption 'Soll Office 365 ATP mit den empfohlenen Einstellungen konfiguriert werden?') -eq 0) {
+
+    $AcceptedDomains = Get-AcceptedDomain
+    $RecipientDomains = $AcceptedDomains.DomainName
+
+    Write-Host -ForegroundColor $MessageColor 'Konfiguration der ATP-Richtlinie für Office 365...'
+
+    ## Konfiguration der Standard ATP Richtlinie für Office 365
+    ## https://docs.microsoft.com/en-us/powershell/module/exchange/advanced-threat-protection/set-atppolicyforo365?view=exchange-ps
+  
+    $AtpPolicyForO365Param=@{
+      'EnableATPForSPOTeamsODB' =  $true;
+      #'EnableSafeLinksForClients' = $true;
+      'EnableSafeLinksForO365Clients' = $true;
+      'EnableSafeDocs' = $false
+      'TrackClicks' = $true;
+      'AllowClickThrough' = $false
+    }
+
+    Set-AtpPolicyForO365 @AtpPolicyForO365Param
+
+    Write-Host -ForegroundColor $MessageColor 'Die Standard ATP-Richtlinie für Office 365 wurde konfiguriert.'
+
+    Write-Host -ForegroundColor $MessageColor 'Erstellung einer Safe Links Basis-Richtlinie...'
+	
+    ## SafeLinks Richtlinie
+    ## https://docs.microsoft.com/en-us/powershell/module/exchange/advanced-threat-protection/new-safelinkspolicy?view=exchange-ps
+
+    $SafeLinksPolicyParam=@{
+      'Name' = 'Basis-Richtlinie Sichere Links- M365 Skript';
+      'AdminDisplayName' = 'Basis-Richtlinie Sichere Links- M365 Skript';
+      'DoNotAllowClickThrough' =  $true;
+      'DoNotTrackUserClicks' = $false;
+      'DeliverMessageAfterScan' = $true;
+      'EnableForInternalSender' = $true;
+      'ScanUrls' = $true;
+      'TrackClicks' = $true;
+      'IsEnabled' = $true
+    }
+
+    New-SafeLinksPolicy @SafeLinksPolicyParam 
+
+    ## SafeLinks Regeln
+    ## https://docs.microsoft.com/en-us/powershell/module/exchange/advanced-threat-protection/new-safelinksrule?view=exchange-ps
+
+    $SafeLinksRuleParam = @{
+      'Name' = 'Basis-Regel Sichere Links - M365 Skript';
+      'SafeLinksPolicy' = 'Basis-Richtlinie Sichere Links- M365 Skript';
+      'RecipientDomainIs' = $RecipientDomains;
+      'Enabled' = $true;
+      'Priority' = 0
+    }
+
+    New-SafeLinksRule @SafeLinksRuleParam
+
+    Write-Host -ForegroundColor $MessageColor 'Die Safe Links Basis-Richtlinie wurde erstellt.'
+
+    Write-Host -ForegroundColor $MessageColor 'Erstellung der Basis-Richtlinie für sichere Anhänge...'
+
+    ## SafeAttachments Richtlinie
+    ## Action options = Block | Replace | Allow | DynamicDelivery (Block is the recommended action)
+    ## https://docs.microsoft.com/en-us/powershell/module/exchange/advanced-threat-protection/new-safeattachmentpolicy?view=exchange-ps
+
+    $SafeAttachmentPolicyParam=@{
+      'Name' = 'Basis-Richtlinie Sichere Anhänge - M365 Skript';
+      'AdminDisplayName' = 'Basis-Richtlinie Sichere Anhänge - M365 Skript';
+      'Action' =  'Block';
+      'ActionOnError' = $false;
+      'Enable' = $true;
+      'Redirect' = $false
+    }
+
+    New-SafeAttachmentPolicy @SafeAttachmentPolicyParam
+
+    ## Create the SafeAttachments Rule 
+    ## https://docs.microsoft.com/en-us/powershell/module/exchange/advanced-threat-protection/new-safeattachmentrule?view=exchange-ps
+
+    $SafeAttachRuleParam=@{
+      'Name' = 'Basis-Regel Sichere Anhänge - M365 Skript';
+      'SafeAttachmentPolicy' = 'Basis-Richtlinie Sichere Anhänge - M365 Skript';
+      'RecipientDomainIs' = $RecipientDomains;
+      'Enabled' = $true;
+      'Priority' = 0
+    }
+
+    New-SafeAttachmentRule @SafeAttachRuleParam
+
+    Write-Host -ForegroundColor $MessageColor 'Die Basis-Richtlinie für sichere Anhänge wurde erstellt.'
+
+    Write-Host -ForegroundColor $MessageColor 'Erstellung der Anti-Phish Basis-Richtlinie...'
+
+    ## Create the Anti-Phish policy 
+    ## https://docs.microsoft.com/en-us/powershell/module/exchange/advanced-threat-protection/new-antiphishpolicy?view=exchange-ps
+
+    $PhishPolicyParam=@{
+      ##'Name' = "AntiPhish Baseline Policy";
+      ##'AdminDisplayName' = "AntiPhish Baseline Policy";
+      'AuthenticationFailAction' =  'Quarantine';
+      'EnableAntispoofEnforcement' = $true;
+      'Enabled' = $true;
+      'EnableMailboxIntelligence' = $true;
+      'EnableMailboxIntelligenceProtection' = $true;
+      'MailboxIntelligenceProtectionAction' = 'Quarantine';
+      'EnableOrganizationDomainsProtection' = $true;
+      'EnableSimilarDomainsSafetyTips' = $true;
+      'EnableSimilarUsersSafetyTips' = $true;
+      'EnableTargetedDomainsProtection' = $false;
+      ##'TargetedDomainsToProtect' = $RecipientDomains;
+      'EnableTargetedUserProtection' = $false;
+      ##'TargetedUsersToProtect' = $TargetedUsersToProtect;
+      'EnableUnusualCharactersSafetyTips' = $true;
+      'PhishThresholdLevel' = 2;
+      'TargetedDomainProtectionAction' =  'Quarantine';
+      'TargetedUserProtectionAction' =  'Quarantine'
+    }
+
+    Set-AntiPhishPolicy -Identity 'Office365 AntiPhish Default' @PhishPolicyParam
+
+
+    <# Ignore this section unless you are attempting to create custom rules
+        ## Get-AntiPhishRule | Remove-AntiPhishRule
+        ## Get-AntiPhishPolicy | Where-Object IsDefault -eq $false | Set-AntiPhishPolicy -Enabled $false 
+        ## Create the AntiPhish rule
+        ## https://docs.microsoft.com/en-us/powershell/module/exchange/advanced-threat-protection/new-antiphishrule?view=exchange-ps
+	
+        $PhishRuleParam = @{
+        'Name' = "AntiPhish Baseline";
+        'AntiPhishPolicy' = "AntiPhish Baseline Policy"; 
+        'RecipientDomainis' = $RecipientDomains;
+        'Enabled' = $true;
+        'Priority' = 0
+        }
+
+        New-AntiPhishRule @PhishRuleParam
+    #>
+
+    Write-Host -foregroundcolor green 'Die Anti Phish Basis-Richtlinie wurde erstellt.'
+
+    write-host -foregroundcolor green 'Office 365 ATP Basiskonfiguration wurde abgeschlossen.'
+
+  } else {
+
+    Write-Host
+    Write-Host -ForegroundColor $AssessmentColor 'Office 365 ATP-Funktionen wurde nicht verändert.'
+
+  }
 }
-
+else {
+  Write-MissingCmdlet -Cmdlet 'Set-AtpPolicyForO365'
+}
 ###################################################################################################
 ## THIS CONCLUDES THE SCRIPT
