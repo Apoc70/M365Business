@@ -1,6 +1,6 @@
 # PowerSkripte für Exchange Online
 
-## Baseline-M365BusinessTenant.ps1
+## Set-M365BusinessBaselineConfiguration.ps1
 
 Dieses PowerShell-Skript dient der Basiskonfiguration von Exchange Online eines Microsoft 365 Business Premium Mandanten. 
 
@@ -16,7 +16,7 @@ Folgende Komponenten können konfiguriert werden:
 - Best Practices Konfiguration der Advanced Threat Protection
 - Best Practices Konfiguration von ATP-SafeLinks
 - Best Practices Konfiguration von ATP-SafeAttachments
-- Best Practices Konfiguration von ATP-AntiPish1
+- Best Practices Konfiguration von ATP-AntiPish
 
 ## Block-BasicAuth.ps1
 

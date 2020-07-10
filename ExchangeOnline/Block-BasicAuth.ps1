@@ -81,7 +81,7 @@ if ((Request-Choice -Caption ("Soll die Richtlinie [{0}] als Standard-Authentifi
 } 
 else {
   Write-Host 
-  Write-Host -ForegroundColor $AssessmentColor ("Die Richtinie [{0}] wurde nicht als Standard-Authentifizierungsrichtlinie des Mandanten aktiviert. Weisen Sie die Richtlinie jedem Anwender manuell zu: Set-User -Identity <username> -AuthenticationPolicy '{1}'" -f $PolicyName)
+  Write-Host -ForegroundColor $AssessmentColor ("Die Richtinie [{0}] wurde nicht als Standard-Authentifizierungsrichtlinie des Mandanten aktiviert. Weisen Sie die Richtlinie jedem Anwender manuell zu: Set-User -Identity <username> -AuthenticationPolicy '{0}'" -f $PolicyName)
   Write-Host 
 }
 

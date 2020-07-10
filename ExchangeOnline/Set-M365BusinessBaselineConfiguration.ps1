@@ -1,21 +1,39 @@
-﻿<##################################################################################################
-    #
+﻿<#
     .SYNOPSIS
-    This script configures a new Microsoft 365 Business tenant including:
-    - Baseline Exchange Online settings and EOP policies
-    - Baseline Office 365 ATP policies
+    Basis Konfiguration eines Microsoft 365 Business Premium Mandanten für Exchange Online und Exchange ATP
+   
+    Alex Fields, Thomas Stensitzki
 
-    See Advanced-TenantConfig.ps1 for other customizations  
+    THIS CODE IS MADE AVAILABLE AS IS, WITHOUT WARRANTY OF ANY KIND. THE ENTIRE 
+    RISK OF THE USE OR THE RESULTS FROM THE USE OF THIS CODE REMAINS WITH THE USER.
+	
+    Version 5.0, 2020-07-10
 
-    Connect to Exchange Online (EXO) via PowerShell v2 using MFA:
-    https://docs.microsoft.com/en-us/powershell/exchange/exchange-online-powershell-v2?view=exchange-ps
+    Ideen, KOmmentare und Vorschläge bitte an support@granikos.eu 
+ 
+    .LINK  
+    http://www.granikos.eu/en/scripts 
 
-    .NOTES
-    FileName:    Baseline-M365BTenant.ps1
-    Author:      Alex Fields, ITProMentor.com, Thomas Stensitzki, Granikos
-    Created:     2019-11-18
-    Revised:     2020-06-19
-    Version:     4.0
+    .LINK
+    https://www.granikos.eu/de/Blog/PostId/1912/leitfaden-microsoft-365-business-migration-und-konfiguration 
+
+    .DESCRIPTION
+    Dieses PowerShell-Skript setzt Basis-Einstellung und Basis-Richtlinien für 
+    - Exchange Online
+    - Exchange Online Protection 
+    - Office 365 Advanced Threat Protection
+	
+    .NOTES 
+    Requirements 
+    - Microsoft 365 Business Premium Abonnement
+    - Exchange Online Management PowerShell V2 (https://docs.microsoft.com/en-us/powershell/exchange/exchange-online-powershell-v2?view=exchange-ps)
+
+    Revision History 
+    -------------------------------------------------------------------------------- 
+    4.0 Erster Community-Release der übersetzten Version
+   
+    .EXAMPLE
+    Set-M365BusinessBaselineConfiguration.ps1
     
 #>
 
@@ -67,11 +85,10 @@ if((Get-Command 'Get-AdminAuditLogConfig' -ErrorAction SilentlyContinue) -ne $nu
   if ($AuditLogConfig.UnifiedAuditLogIngestionEnabled) {
     Write-Host 
     Write-Host -ForegroundColor $MessageColor 'Unified Audit Log Suche ist bereits aktiviert'
-  } 
+  } j
   else {
     Write-Host 
     Write-Host -ForegroundColor $AssessmentColor 'Unified Audit Log ist nicht aktiviert'
-    Write-Host 
   
     if ((Request-Choice -Caption 'Möchten Sie die Auditprotokollierung für Postfächer und das Unfied Audit Log aktivieren?') -eq 0) {
     
@@ -88,6 +105,9 @@ if((Get-Command 'Get-AdminAuditLogConfig' -ErrorAction SilentlyContinue) -ne $nu
       Write-Host 
       Write-Host -ForegroundColor $AssessmentColor 'Unified Audit Log wird nicht aktiviert'
     }
+    
+    Write-Host
+    
   }
 }
 else {
@@ -123,6 +143,9 @@ if((Get-Command 'Get-OrganizationConfig' -ErrorAction SilentlyContinue) -ne $nul
       Write-Host
       Write-Host -ForegroundColor $AssessmentColor 'Modern Authentication wird nicht aktiviert'
     }
+    
+    Write-Host
+    
   }
      
   #################################################
@@ -177,7 +200,6 @@ if((Get-Command 'Get-OrganizationConfig' -ErrorAction SilentlyContinue) -ne $nul
 else {
   Write-MissingCmdlet -Cmdlet 'Get-OrganizationConfig'
 }
-
 
 ## OPTIONAL: 
 ## Create and assign the 'Block Basic Auth' policy explicitly to all users:
