@@ -85,7 +85,7 @@ if((Get-Command 'Get-AdminAuditLogConfig' -ErrorAction SilentlyContinue) -ne $nu
   if ($AuditLogConfig.UnifiedAuditLogIngestionEnabled) {
     Write-Host 
     Write-Host -ForegroundColor $MessageColor 'Unified Audit Log Suche ist bereits aktiviert'
-  } j
+  } 
   else {
     Write-Host 
     Write-Host -ForegroundColor $AssessmentColor 'Unified Audit Log ist nicht aktiviert'
