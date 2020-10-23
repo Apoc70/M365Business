@@ -16,7 +16,7 @@ Folgende Komponenten können konfiguriert werden:
 - Best Practices Konfiguration der Advanced Threat Protection
 - Best Practices Konfiguration von ATP-SafeLinks
 - Best Practices Konfiguration von ATP-SafeAttachments
-- Best Practices Konfiguration von ATP-AntiPish
+- Best Practices Konfiguration von ATP-AntiPhishing
 
 ## Block-BasicAuth.ps1
 
