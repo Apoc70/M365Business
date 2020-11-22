@@ -2,7 +2,13 @@
 
 ## Set-M365BusinessBaselineConfiguration.ps1
 
-Dieses PowerShell-Skript dient der Basiskonfiguration von Exchange Online eines Microsoft 365 Business Premium Mandanten. 
+Dieses PowerShell-Skript dient der Basiskonfiguration von Exchange Online eines Microsoft 365 Business Premium Mandanten.
+
+Für die Ausführung des ÜpwerShell-Skriptes ist das Exchange Online Management MOdul V2 erforderlich.
+
+Stellen Sie sicher, dass Sie vor der Ausführung des Skriptes die Anpassung des Mandanten aktivieren. Nutzen Sie hierzu das folgende EXO V2-Cmdlet:
+
+BUtEnable-OrganizationCustomization
 
 Folgende Komponenten können konfiguriert werden:
 
