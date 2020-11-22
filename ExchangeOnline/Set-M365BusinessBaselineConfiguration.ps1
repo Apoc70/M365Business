@@ -344,8 +344,9 @@ if((Get-Command 'Set-HostedContentFilterPolicy' -ErrorAction SilentlyContinue) -
       'markasspamfromaddressauthfail' = 'off';
       'markasspamndrbackscatter' = 'off';
       'phishspamaction' = 'quarantine';
+      'phishzapenabled' = $true;
       'spamaction' = 'MoveToJMF';
-      'zapenabled' = $true;
+      'spamzapenabled' = $true;
       'EnableEndUserSpamNotifications' = $true;
       'EndUserSpamNotificationFrequency' = 1;
       'QuarantineRetentionPeriod' = 30
