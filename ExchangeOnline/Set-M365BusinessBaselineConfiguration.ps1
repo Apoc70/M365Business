@@ -79,7 +79,7 @@ function Write-MissingCmdlet {
 ## ENABLE UNIFIED AUDIT LOG SEARCH
 #################################################
 
-if((Get-Command 'Get-AdminAuditLogConfig' -ErrorAction SilentlyContinue) -ne $null) {
+if($null -ne (Get-Command 'Get-AdminAuditLogConfig' -ErrorAction SilentlyContinue)) {
 
   $AuditLogConfig = Get-AdminAuditLogConfig
 
@@ -120,7 +120,7 @@ else {
 ## CHECK TO ENSURE MODERN AUTH IS ENABLED
 #################################################
 
-if((Get-Command 'Get-OrganizationConfig' -ErrorAction SilentlyContinue) -ne $null) {
+if($null -ne (Get-Command 'Get-OrganizationConfig' -ErrorAction SilentlyContinue)) {
 
   $OrgConfig = Get-OrganizationConfig
 
@@ -153,7 +153,7 @@ if((Get-Command 'Get-OrganizationConfig' -ErrorAction SilentlyContinue) -ne $nul
   ## BLOCK BASIC AUTH
   #################################################
 
-  if ($OrgConfig.DefaultAuthenticationPolicy -eq $null -or $OrgConfig.DefaultAuthenticationPolicy -eq '') {
+  if (($null -eq $OrgConfig.DefaultAuthenticationPolicy) -or ($OrgConfig.DefaultAuthenticationPolicy -eq '')) {
 
     Write-Host
     Write-Host -ForegroundColor $MessageColor 'Es existiert keine Standard-Authentifizierungsrichtlinie'
@@ -240,7 +240,7 @@ else {
 ## DISABLE AUTOMATIC FORWARDING
 #################################################
 
-if((Get-Command 'Get-RemoteDomain' -ErrorAction SilentlyContinue) -ne $null) {
+if($null -ne (Get-Command 'Get-RemoteDomain' -ErrorAction SilentlyContinue)) {
 
   $RemoteDomainDefault = Get-RemoteDomain Default
 
@@ -314,7 +314,7 @@ else {
 ## RESET THE DEFAULT ANTISPAM SETTINGS
 #################################################
 
-if((Get-Command 'Set-HostedContentFilterPolicy' -ErrorAction SilentlyContinue) -ne $null) {
+if($null -ne (Get-Command 'Set-HostedContentFilterPolicy' -ErrorAction SilentlyContinue)) {
 
   Write-Host
 
@@ -387,7 +387,7 @@ else {
 ## RESET DEFAULT ANTIMALWARE SETTINGS
 #################################################
 
-if((Get-Command 'Set-MalwareFilterPolicy' -ErrorAction SilentlyContinue) -ne $null) {
+if($null -ne (Get-Command 'Set-MalwareFilterPolicy' -ErrorAction SilentlyContinue)) {
 
   Write-Host
 
@@ -439,13 +439,13 @@ else {
 #################################################
 ## RESET OUTBOUND SPAM FILTER
 #################################################
-if((Get-Command 'Set-HostedOutboundSpamFilterPolicy' -ErrorAction SilentlyContinue) -ne $null) {
+if($null -ne (Get-Command 'Set-HostedOutboundSpamFilterPolicy' -ErrorAction SilentlyContinue)) {
 
   Write-Host
 
   if ((Request-Choice -Caption 'Soll die AntiSPam-Filterrichtlinie für ausgehende E-Mail-Nachrichten mit den empfohlenen Einstellungen konfiguriert werden?') -eq 0) {
 
-    if ($AlertAddress -eq $null -or $AlertAddress -eq '') {
+    if ($null -eq $AlertAddress -or $AlertAddress -eq '') {
 
       $AlertAddress = Read-Host -Prompt 'An welche E-Mail-Adresse sollen Warnungen über ausgehende Spam-Vorfälle gesendet werden?'
 
@@ -492,7 +492,7 @@ else {
 #################################################
 ## CONFIGURE OFFICE 365 ATP SETTINGS
 #################################################
-if((Get-Command 'Set-HostedOutboundSpamFilterPolicy' -ErrorAction SilentlyContinue) -ne $null) {
+if($null -ne (Get-Command 'Set-HostedOutboundSpamFilterPolicy' -ErrorAction SilentlyContinue)) {
 
   Write-Host
 
